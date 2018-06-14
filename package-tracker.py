@@ -108,6 +108,7 @@ def main(argv):
     # Send updates
     if len(tracking_updates) > 0:
         with smtplib.SMTP(settings['email']['smtp_server']) as smtp:
+            smtp.starttls()
             smtp.login(
                 settings['email']['user'],
                 settings['email']['password'],
