@@ -24,21 +24,23 @@ def track_correoschile(tracking_number):
             'obj_env': tracking_number
         })
 
+    updates = {}
+
     soup = bs4.BeautifulSoup(tracking_page.content, 'html.parser')
     table = soup.find(attrs={'class': 'tracking'})
 
-    updates = {}
-    for row in table.find_all('tr'):
-        values = [cell.string.strip() for cell in row.find_all('td')]
+    if table is not None:
+        for row in table.find_all('tr'):
+            values = [cell.string.strip() for cell in row.find_all('td')]
 
-        if len(values) != 3:
-            continue
+            if len(values) != 3:
+                continue
 
-        date = datetime.strptime(values[1], '%d/%m/%Y %H:%M')
-        updates[date] = {
-            'status': values[0].capitalize(),
-            'location': values[2].capitalize()
-        }
+            date = datetime.strptime(values[1], '%d/%m/%Y %H:%M')
+            updates[date] = {
+                'status': values[0].capitalize(),
+                'location': values[2].capitalize()
+            }
 
     return updates
 
@@ -75,6 +77,8 @@ def main(argv):
 
         # Get info from tracking website
         updates = track_correoschile(number)
+        if len(updates) == 0:
+            continue
 
         # Check if new updates have been made
         try:
