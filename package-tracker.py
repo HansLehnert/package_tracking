@@ -45,6 +45,42 @@ def track_correoschile(tracking_number):
     return updates
 
 
+def email_updates(
+        updates, smtp_server, sender, receiver,
+        tls=True, user=None, password=None, **kwargs):
+    """Send an email notification of package updates.
+
+    'updates' is a dictionary where keys are the tracking numbers and the
+    values is a list of (date, description) tuples.
+    """
+    with smtplib.SMTP(smtp_server) as smtp:
+        if tls:
+            smtp.starttls()
+
+        if user is not None and password is not None:
+            smtp.login(user, password)
+
+        msg = EmailMessage()
+        msg['From'] = 'Package Tracking <{}>'.format(sender)
+        msg['To'] = receiver
+        msg['Subject'] = 'New tracking updates'
+
+        # Build message body
+        message_body = '<p>Updates since last check:</p>'
+        for number in updates:
+            message_body += '<p>{}</p>'.format(number)
+            message_body += '<ul>'
+            for item in updates[number]:
+                message_body += '<li>'
+                message_body += '<b>{}</b> {}'.format(
+                    item[0].strftime('%c'), item[1])
+                message_body += '</li>'
+            message_body += '</ul>'
+        msg.set_content(message_body, subtype='html')
+
+        smtp.send_message(msg, sender, receiver)
+
+
 def main(argv):
     settings = None
     try:
@@ -106,38 +142,8 @@ def main(argv):
     log_file.close()
 
     # Send updates
-    if len(tracking_updates) > 0:
-        with smtplib.SMTP(settings['email']['smtp_server']) as smtp:
-            smtp.starttls()
-            smtp.login(
-                settings['email']['user'],
-                settings['email']['password'],
-            )
-
-            msg = EmailMessage()
-            msg['From'] = 'Package Tracking <{}>'.format(
-                settings['email']['sender'])
-            msg['To'] = settings['email']['receiver']
-            msg['Subject'] = 'New tracking updates'
-
-            message_body = '<p>Updates since last check:</p>'
-            for number in tracking_updates:
-                message_body += '<p>{}</p>'.format(number)
-                message_body += '<ul>'
-                for update in tracking_updates[number]:
-                    message_body += '<li>'
-                    message_body += '<b>{}</b> {}'.format(
-                        update[0].strftime('%c'), update[1])
-                    message_body += '</li>'
-                message_body += '</ul>'
-
-            msg.set_content(message_body, subtype='html')
-
-            smtp.send_message(
-                msg,
-                settings['email']['sender'],
-                settings['email']['receiver']
-            )
+    if len(tracking_updates) > 0 and settings['alert']:
+        email_updates(tracking_updates, **settings['email'])
 
 
 if __name__ == '__main__':
