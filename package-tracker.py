@@ -27,7 +27,7 @@ def track_correoschile(tracking_number):
     updates = {}
 
     soup = bs4.BeautifulSoup(tracking_page.content, 'html.parser')
-    table = soup.find(attrs={'class': 'tracking'})
+    table = soup.find(class_='tracking')
 
     if table is not None:
         for row in table.find_all('tr'):
