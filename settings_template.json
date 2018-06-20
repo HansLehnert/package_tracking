@@ -1,0 +1,14 @@
+{
+    "alert": false,
+    "email": {
+        "smtp_server": "<name of smtp server>",
+        "tls": true,
+        "sender": "<email address of the sender>",
+        "receiver": "<email address of the receiver>",
+        "user": "For smtp server login. Set to null for no login.",
+        "password": "For smtp server login. Set to null for no login."
+    },
+    "tracking_numbers": [
+
+    ]
+}
