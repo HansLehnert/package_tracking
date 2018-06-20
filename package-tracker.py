@@ -53,6 +53,7 @@ def email_updates(
     'updates' is a dictionary where keys are the tracking numbers and the
     values is a list of (date, description) tuples.
     """
+
     with smtplib.SMTP(smtp_server) as smtp:
         if tls:
             smtp.starttls()
@@ -71,10 +72,8 @@ def email_updates(
             message_body += '<p>{}</p>'.format(number)
             message_body += '<ul>'
             for item in updates[number]:
-                message_body += '<li>'
-                message_body += '<b>{}</b> {}'.format(
+                message_body += '<li><b>{}</b> {}</li>'.format(
                     item[0].strftime('%c'), item[1])
-                message_body += '</li>'
             message_body += '</ul>'
         msg.set_content(message_body, subtype='html')
 
@@ -113,6 +112,9 @@ def main(argv):
 
         # Get info from tracking website
         updates = track_correoschile(number)
+
+        entry['last_check'] = datetime.now().strftime(TIMESTAMP_FORMAT)
+
         if len(updates) == 0:
             continue
 
@@ -131,7 +133,6 @@ def main(argv):
                 tracking_updates[number].append((x, updates[x]['status']))
 
         # Update entry in the log
-        entry['last_check'] = datetime.now().strftime(TIMESTAMP_FORMAT)
         entry['updates'].update(
             {x.strftime(TIMESTAMP_FORMAT): updates[x] for x in updates})
         entry['last_update'] = max(updates.keys()).strftime(TIMESTAMP_FORMAT)
