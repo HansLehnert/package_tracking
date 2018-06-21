@@ -132,8 +132,8 @@ def main(argv):
         # Update package delivery
         entry['delivered'] = tracking_info['delivered']
         if entry['delivered'] and settings['autoremove']:
-            tracking_updates[number].append(
-                (datetime.now(), 'Finished tracking'))
+            tracking_updates['System'].append(
+                (datetime.now(), 'Finished tracking {}'.format(number)))
             settings['tracking_numbers'].remove(number)
 
         # Check if new updates have been made
