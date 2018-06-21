@@ -1,5 +1,6 @@
 {
     "alert": false,
+    "autoremove": false,
     "email": {
         "smtp_server": "<name of smtp server>",
         "tls": true,

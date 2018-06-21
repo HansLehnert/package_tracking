@@ -7,6 +7,7 @@ import sys
 import smtplib
 from datetime import datetime
 from email.message import EmailMessage
+from collections import defaultdict
 
 
 TIMESTAMP_FORMAT = '%Y.%m.%d %H:%M'
@@ -24,7 +25,10 @@ def track_correoschile(tracking_number):
             'obj_env': tracking_number
         })
 
-    updates = {}
+    tracking_info = {
+        'updates': {},
+        'delivered': False,
+    }
 
     soup = bs4.BeautifulSoup(tracking_page.content, 'html.parser')
     table = soup.find(class_='tracking')
@@ -37,12 +41,18 @@ def track_correoschile(tracking_number):
                 continue
 
             date = datetime.strptime(values[1], '%d/%m/%Y %H:%M')
-            updates[date] = {
-                'status': values[0].capitalize(),
-                'location': values[2].capitalize()
+            status = values[0].capitalize()
+            location = values[2].capitalize()
+
+            tracking_info['updates'][date] = {
+                'status': status,
+                'location': location
             }
 
-    return updates
+            if status == 'Envio entregado':
+                tracking_info['delivered'] = True
+
+    return tracking_info
 
 
 def email_updates(
@@ -98,27 +108,38 @@ def main(argv):
     except IOError:
         pass
 
-    tracking_updates = {}
+    tracking_updates = defaultdict(list)
 
     # Check for updates
-    for number in settings['tracking_numbers']:
+    for number in settings['tracking_numbers'][:]:
+        # Create entry for new tracking number
         if number not in tracking_log:
             tracking_log[number] = {
                 'last_check': None,
                 'last_update': None,
+                'delivered': False,
                 'updates': {}
             }
         entry = tracking_log[number]
 
         # Get info from tracking website
-        updates = track_correoschile(number)
+        tracking_info = track_correoschile(number)
+        updates = tracking_info['updates']
 
+        # Update check time
         entry['last_check'] = datetime.now().strftime(TIMESTAMP_FORMAT)
 
+        # Update package delivery
+        entry['delivered'] = tracking_info['delivered']
+        if entry['delivered'] and settings['autoremove']:
+            tracking_updates[number].append(
+                (datetime.now(), 'Finished tracking'))
+            settings['tracking_numbers'].remove(number)
+
+        # Check if new updates have been made
         if len(updates) == 0:
             continue
 
-        # Check if new updates have been made
         try:
             last_update = datetime.strptime(
                 entry['last_update'], TIMESTAMP_FORMAT)
@@ -127,9 +148,6 @@ def main(argv):
 
         for x in updates:
             if last_update is None or x > last_update:
-                if number not in tracking_updates:
-                    tracking_updates[number] = []
-
                 tracking_updates[number].append((x, updates[x]['status']))
 
         # Update entry in the log
@@ -137,10 +155,15 @@ def main(argv):
             {x.strftime(TIMESTAMP_FORMAT): updates[x] for x in updates})
         entry['last_update'] = max(updates.keys()).strftime(TIMESTAMP_FORMAT)
 
-    # Write updated log file
+    # Write updated log and settings file
     log_file = open('log.json', 'w')
     json.dump(tracking_log, log_file, indent=4)
     log_file.close()
+
+    if settings['autoremove']:
+        settings_file = open('settings.json', 'w')
+        json.dump(settings, settings_file, indent=4)
+        settings_file.close()
 
     # Send updates
     if len(tracking_updates) > 0 and settings['alert']:
