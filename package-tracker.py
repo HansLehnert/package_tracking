@@ -91,22 +91,19 @@ def email_updates(
 
 
 def main(argv):
-    settings = None
+    # Load settings and log files
     try:
-        settings_file = open('settings.json', 'r')
-        settings = json.load(settings_file)
-        settings_file.close()
+        with open('settings.json', 'r') as settings_file:
+            settings = json.load(settings_file)
     except IOError:
         print('Missing configuration file "settings.json"')
         return
 
-    tracking_log = {}
     try:
-        log_file = open('log.json', 'r')
-        tracking_log = json.load(log_file)
-        log_file.close()
+        with open('log.json', 'r') as log_file:
+            tracking_log = json.load(log_file)
     except IOError:
-        pass
+        tracking_log = {}
 
     tracking_updates = defaultdict(list)
 
@@ -156,14 +153,11 @@ def main(argv):
         entry['last_update'] = max(updates.keys()).strftime(TIMESTAMP_FORMAT)
 
     # Write updated log and settings file
-    log_file = open('log.json', 'w')
-    json.dump(tracking_log, log_file, indent=4)
-    log_file.close()
+    with open('log.json', 'w') as log_file:
+        json.dump(tracking_log, log_file, indent=4, sort_keys=True)
 
-    if settings['autoremove']:
-        settings_file = open('settings.json', 'w')
-        json.dump(settings, settings_file, indent=4)
-        settings_file.close()
+    with open('settings.json', 'w') as settings_file:
+        json.dump(settings, settings_file, indent=4, sort_keys=True)
 
     # Send updates
     if len(tracking_updates) > 0 and settings['alert']:
