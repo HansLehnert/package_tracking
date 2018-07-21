@@ -1,10 +1,11 @@
-"""Script for tracking and alerting about package status."""
+"""Tracking and alerting about package status."""
 
 import requests
 import bs4
 import json
 import sys
 import smtplib
+import argparse
 from datetime import datetime
 from email.message import EmailMessage
 from collections import defaultdict
@@ -105,9 +106,21 @@ def main(argv):
     except IOError:
         tracking_log = {}
 
-    tracking_updates = defaultdict(list)
+    # Argument parser
+    parser = argparse.ArgumentParser(description=__doc__)
+    subparsers = parser.add_subparsers(dest='command', title='commands')
+    track_parser = subparsers.add_parser('track', help='add a tracking number')
+    track_parser.add_argument('tracking_number')
+    args = parser.parse_args(argv)
+
+    # Add tracking number (if the 'track' command was selected)
+    # TODO: Move to separate function
+    if args.command == 'track':
+        settings['tracking_numbers'].append(args.tracking_number)
 
     # Check for updates
+    tracking_updates = defaultdict(list)
+
     for number in settings['tracking_numbers'][:]:
         # Create entry for new tracking number
         if number not in tracking_log:
@@ -165,4 +178,4 @@ def main(argv):
 
 
 if __name__ == '__main__':
-    main(sys.argv)
+    main(sys.argv[1:])
