@@ -1,7 +1,5 @@
 """Tracking and alerting about package status."""
 
-import requests
-import bs4
 import json
 import sys
 import smtplib
@@ -10,50 +8,10 @@ from datetime import datetime
 from email.message import EmailMessage
 from collections import defaultdict
 
+import correoschile
+
 
 TIMESTAMP_FORMAT = '%Y.%m.%d %H:%M'
-
-
-def track_correoschile(tracking_number):
-    """Get tracking information from CorreosChile website."""
-
-    request_url = 'http://seguimientoweb.correos.cl/ConEnvCorreos.aspx'
-
-    tracking_page = requests.post(
-        request_url,
-        params={
-            'obj_key': 'Cor398-cc',  # key was hardcoded in the website
-            'obj_env': tracking_number
-        })
-
-    tracking_info = {
-        'updates': {},
-        'delivered': False,
-    }
-
-    soup = bs4.BeautifulSoup(tracking_page.content, 'html.parser')
-    table = soup.find(class_='tracking')
-
-    if table is not None:
-        for row in table.find_all('tr'):
-            values = [cell.string.strip() for cell in row.find_all('td')]
-
-            if len(values) != 3:
-                continue
-
-            date = datetime.strptime(values[1], '%d/%m/%Y %H:%M')
-            status = values[0].capitalize()
-            location = values[2].capitalize()
-
-            tracking_info['updates'][date] = {
-                'status': status,
-                'location': location
-            }
-
-            if status == 'Envio entregado':
-                tracking_info['delivered'] = True
-
-    return tracking_info
 
 
 def email_updates(
@@ -65,6 +23,29 @@ def email_updates(
     values is a list of (date, description) tuples.
     """
 
+    # Build message body
+    message_body = '<p>Updates since last check:</p>'
+    for category in updates:
+        # Catergory title
+        message_body += '<p>'
+        if type(category) is tuple:
+            message_body += '<a href={1}>{0}</a>'.format(*category)
+        else:
+            message_body += category
+        message_body += '</p>'
+
+        # Items
+        message_body += '<ul>'
+        for item in updates[category]:
+            message_body += '<li>'
+            message_body += '<b>{}</b> {} '.format(
+                item['time'].strftime('%c'), item['status'])
+            if 'location' in item:
+                message_body += '<i>({})</i>'.format(item['location'])
+            message_body += '</li>'
+        message_body += '</ul>'
+
+    # Send message
     with smtplib.SMTP(smtp_server) as smtp:
         if tls:
             smtp.starttls()
@@ -77,15 +58,6 @@ def email_updates(
         msg['To'] = receiver
         msg['Subject'] = 'New tracking updates'
 
-        # Build message body
-        message_body = '<p>Updates since last check:</p>'
-        for number in updates:
-            message_body += '<p>{}</p>'.format(number)
-            message_body += '<ul>'
-            for item in updates[number]:
-                message_body += '<li><b>{}</b> {}</li>'.format(
-                    item[0].strftime('%c'), item[1])
-            message_body += '</ul>'
         msg.set_content(message_body, subtype='html')
 
         smtp.send_message(msg, sender, receiver)
@@ -133,17 +105,21 @@ def main(argv):
         entry = tracking_log[number]
 
         # Get info from tracking website
-        tracking_info = track_correoschile(number)
+        tracking_info = correoschile.track(number)
         updates = tracking_info['updates']
 
         # Update check time
         entry['last_check'] = datetime.now().strftime(TIMESTAMP_FORMAT)
 
-        # Update package delivery
+        # Remove from settings if package has been delivered
         entry['delivered'] = tracking_info['delivered']
         if entry['delivered'] and settings['autoremove']:
-            tracking_updates['System'].append(
-                (datetime.now(), 'Finished tracking {}'.format(number)))
+            new_update = {
+                'time': datetime.now(),
+                'status': 'Finished tracking {}'.format(number),
+            }
+
+            tracking_updates['System'].append(new_update)
             settings['tracking_numbers'].remove(number)
 
         # Check if new updates have been made
@@ -156,9 +132,12 @@ def main(argv):
         except TypeError:
             last_update = None
 
-        for x in updates:
-            if last_update is None or x > last_update:
-                tracking_updates[number].append((x, updates[x]['status']))
+        for time, status in updates.items():
+            category = (number, tracking_info['url'])
+            if last_update is None or time > last_update:
+                new_update = dict(status)
+                new_update['time'] = time
+                tracking_updates[category].append(new_update)
 
         # Update entry in the log
         entry['updates'].update(
